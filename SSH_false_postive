@@ -1,0 +1,133 @@
+This incident involved a user logging in with -vvv via power shell the following is a summary and report on the incdent.
+
+# Incident Response Playbook: Analysis of OpenSSH obfuscate\_keystroke\_timing Debug Output
+
+## Incident Trigger
+
+A user noticed repeated `debug3: obfuscate_keystroke_timing` messages during an SSH session when using the `ssh -vvvv` command-line option. This raised concerns about the potential compromise of the SSH binary located at `/usr/bin/ssh`, including the possibility of a backdoor.
+
+---
+
+## Objective
+
+Determine whether the `debug3: obfuscate_keystroke_timing` messages are indicative of malicious activity or are expected behavior based on recent OpenSSH updates.
+
+---
+
+## Investigative Process
+
+### 1. Verifying Binary Integrity
+
+* **Step:** Used `sha256sum` to compute the hash of `/usr/bin/ssh`.
+* **Outcome:** The resulting hash did **not** match the expected value.
+* **Implication:** This suggests the possibility of tampering or unexpected modification of the binary.
+* **Verification Attempt:** System logs (`/var/log/dpkg.log`) confirmed an OpenSSH package update to `openssh-client 1:9.6p1-3ubuntu13.12` on June 20, 2025, but the mismatch indicates further investigation is warranted.
+
+### 2. Static Binary Analysis
+
+* **Tools Employed:** `strings`, `radare2`, `objdump`
+* **Key Observations:**
+
+  * Strings such as `obfuscate_keystroke_timing`, `send_chaff`, and `chaff time expired` were present.
+  * No cross-references to these strings were found, which is consistent with macro-based debug logging.
+
+### 3. User Account and Log Review
+
+* **Account Review:** No unauthorized users identified in `/etc/passwd`.
+* **Session History:** No unusual login activity was found using `last`, `who`, and `journalctl`.
+* **Service Validation:** The `sshd` user exists and is correctly restricted with `/usr/sbin/nologin`.
+
+### 4. Network Inspection
+
+* **Scope:** Looked for unexpected listeners or outbound connections.
+* **Methods:** Employed `ss -tulnp`, `ps`, and `netstat`.
+* **Results:** No evidence of backdoors, reverse shells, or unauthorized services detected.
+
+### 5. Identifying Root Cause
+
+* **Behavioral Insight:**
+
+  * OpenSSH version 8.2 and later includes keystroke timing obfuscation by default.
+  * The debug message in question appears only at `LogLevel=DEBUG3`, enabled via `ssh -vvvv`.
+* **Consideration:** The behavior itself is not inherently malicious, but the hash mismatch of the binary raises concerns that require further examination to rule out tampering.
+
+---
+
+## Interim Conclusion
+
+* While the log behavior aligns with standard OpenSSH functionality, the binary integrity check failure suggests potential unauthorized modification.
+* Further steps such as restoring from known-good binaries, comparing against package checksums (`debsums`), and deep binary diffing are recommended.
+
+---
+
+## Defensive Enhancements
+
+* Initiated development of file integrity monitoring scripts in Bash and Rust.
+* Enhanced SSH hardening documentation and team training regarding OpenSSH debug levels and feature changes.
+
+---
+
+## Tools and Commands Used
+
+```bash
+sha256sum /usr/bin/ssh
+debsums -s openssh-client
+strings /usr/bin/ssh
+radare2 -AA /usr/bin/ssh
+objdump -d /usr/bin/ssh | less
+ss -tulnp
+journalctl -u ssh
+cat /var/log/dpkg.log | grep openssh
+```
+
+---
+
+## Lessons for Security Teams
+
+* Do not assume that expected log messages imply a clean system; binary integrity must always be verified.
+* Understand how OpenSSH’s features evolve to interpret debug output correctly.
+* Cross-reference system logs and hashes to establish trust in deployed binaries.
+
+---
+
+## Recommended Topics for Further Team Development
+
+* File integrity monitoring (FIM) best practices
+* Reverse engineering for anomaly detection
+* Baseline hash management and validation techniques
+* Behavior-based intrusion detection
+* SSH security posture assessments
+
+---
+
+## Red Team Considerations
+
+If an attacker had modified the SSH binary, realistic goals might include:
+
+* Embedding credential logging or traffic interception logic
+* Creating covert channels via modified debug functions
+* Triggering payload execution via specific log levels
+* Evading detection by mimicking new features from legitimate upstream releases
+
+Simulated red team activities should involve creating and deploying such modified binaries in controlled environments to train detection and response teams.
+
+---
+
+## Appendix
+
+### File Tampering Detection Scripts
+
+* Bash implementation
+* Rust implementation
+
+### External Resources
+
+* [OpenSSH 8.2 Release Notes](https://www.openssh.com/txt/release-8.2)
+* [Ubuntu OpenSSH Package Information](https://launchpad.net/ubuntu/+source/openssh)
+* \[Linux File Integrity Tools: AIDE, Tripwire, Samhain]
+
+---
+
+## Conclusion
+
+This case demonstrates the importance of verifying the actual integrity of security-critical binaries. Even if behavior aligns with documented features, a hash mismatch must be taken seriously. Future investigations should balance behavioral analysis with cryptographic validation and ensure remediation paths are in place for potential tampering scenarios.
