@@ -1,10 +1,9 @@
-This incident involved a user logging in with -vvv via power shell the following is a summary and report on the incdent.
 
 # Incident Response Playbook: Analysis of OpenSSH obfuscate\_keystroke\_timing Debug Output
 
-## Incident Trigger
+## Trigger
 
-A user noticed repeated `debug3: obfuscate_keystroke_timing` messages during an SSH session when using the `ssh -vvvv` command-line option. This raised concerns about the potential compromise of the SSH binary located at `/usr/bin/ssh`, including the possibility of a backdoor.
+A user noticed repeated `debug3: obfuscate_keystroke_timing` messages during an SSH session when using the ssh command-line option. This raised concerns about the potential compromise of the SSH binary located at `/usr/bin/ssh`, including the possibility of a backdoor.
 
 ---
 
